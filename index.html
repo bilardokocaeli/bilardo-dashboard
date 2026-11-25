@@ -1,0 +1,1319 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>3-Bant Bilardo Turnuva & Sporcu Performans Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <style>
+    :root {
+      --bg: #0b1120;
+      --bg-card: #111827;
+      --bg-soft: #1e293b;
+      --border: #263248;
+      --text: #f1f5f9;
+      --muted: #94a3b8;
+      --accent: #10b981;
+      --gold: #f59e0b;
+      --blue: #38bdf8;
+      --red: #ef4444;
+    }
+    body.light {
+      --bg: #f1f5f9;
+      --bg-card: #ffffff;
+      --bg-soft: #e2e8f0;
+      --border: #cbd5e1;
+      --text: #0f172a;
+      --muted: #475569;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.45;
+    }
+    body:not(.admin-mode) .admin-only { display: none !important; }
+    body.admin-mode .visitor-only { display: none !important; }
+
+    header {
+      position: sticky; top: 0; z-index: 40;
+      background: rgba(17, 24, 39, 0.94);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 16px;
+      display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px;
+    }
+    body.light header { background: rgba(255, 255, 255, 0.94); }
+    .brand { display: flex; align-items: center; gap: 10px; }
+    .brand-icon {
+      width: 36px; height: 36px; border-radius: 10px;
+      background: linear-gradient(135deg, #10b981, #059669);
+      display: grid; place-items: center; font-weight: 800; color: #fff; font-size: 15px; flex-shrink: 0;
+    }
+    .brand h1 { margin: 0; font-size: 16px; font-weight: 700; }
+    .brand small { display: block; color: var(--muted); font-size: 12px; }
+    .header-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+
+    .admin-bar {
+      background: linear-gradient(90deg, rgba(245, 158, 11, 0.16), rgba(16, 185, 129, 0.14));
+      border-bottom: 1px solid rgba(245, 158, 11, 0.4);
+      padding: 8px 16px;
+      display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px;
+      font-size: 13px;
+    }
+
+    button {
+      cursor: pointer; border: 1px solid var(--border); background: var(--bg-soft);
+      color: var(--text); padding: 8px 12px; border-radius: 8px; font-size: 13px; font-weight: 600;
+      display: inline-flex; align-items: center; gap: 6px; transition: 0.15s;
+    }
+    button:hover { border-color: var(--accent); }
+    .btn-primary { background: var(--accent); color: #052e16; border-color: var(--accent); }
+    .btn-gold { background: var(--gold); color: #451a03; border-color: var(--gold); }
+    .btn-danger { background: rgba(239, 68, 68, 0.15); color: #fca5a5; border-color: rgba(239,68,68,0.4); }
+    body.light .btn-danger { color: #b91c1c; }
+    .btn-sm { padding: 5px 9px; font-size: 12px; border-radius: 6px; }
+
+    nav.tabs {
+      display: flex; gap: 4px; padding: 10px 16px 0; border-bottom: 1px solid var(--border);
+      background: var(--bg-card); overflow-x: auto;
+    }
+    .tab-btn {
+      background: transparent; border: none; border-bottom: 3px solid transparent;
+      border-radius: 0; padding: 10px 12px; color: var(--muted); font-size: 13px; white-space: nowrap;
+    }
+    .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+    main { max-width: 1440px; margin: 0 auto; padding: 16px; }
+    .section { display: none; }
+    .section.active { display: block; }
+
+    .import-banner {
+      background: linear-gradient(90deg, rgba(16,185,129,0.12), rgba(56,189,248,0.1));
+      border: 1px dashed var(--accent); border-radius: 12px; padding: 12px 16px;
+      margin-bottom: 16px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px;
+    }
+    .import-banner.dragover { background: rgba(16,185,129,0.25); }
+
+    .kpi-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 18px;
+    }
+    .card {
+      background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 14px;
+    }
+    .kpi-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+    .kpi-val { font-size: 22px; font-weight: 800; margin: 5px 0 2px; }
+    .kpi-sub { font-size: 12px; color: var(--accent); }
+
+    .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 14px; margin-bottom: 18px; }
+    @media (max-width: 480px) {
+      .grid-2 { grid-template-columns: 1fr; }
+      .form-grid { grid-template-columns: 1fr !important; }
+    }
+
+    .card-header {
+      display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 10px;
+    }
+    .card-title { font-size: 15px; font-weight: 700; margin: 0; }
+    .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+    input, select {
+      background: var(--bg); color: var(--text); border: 1px solid var(--border);
+      padding: 8px 10px; border-radius: 8px; font-size: 13px; max-width: 100%;
+    }
+    input:focus, select:focus { outline: none; border-color: var(--accent); }
+
+    .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { padding: 9px 10px; border-bottom: 1px solid var(--border); text-align: left; white-space: nowrap; }
+    th {
+      background: var(--bg-soft); color: var(--muted); font-size: 11px; text-transform: uppercase;
+      letter-spacing: 0.04em; cursor: pointer; user-select: none; position: sticky; top: 0;
+    }
+    td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; }
+    .b-champ { background: #dc2626; color: #fff; }
+    .b-final { background: #e2e8f0; color: #0f172a; }
+    .b-sf { background: #fdba74; color: #431407; }
+    .b-qf { background: #0ea5e9; color: #fff; }
+    .b-16 { background: #64748b; color: #fff; }
+    .b-32 { background: #22c55e; color: #052e16; }
+    .b-grp { background: #f472b6; color: #500724; }
+
+    .pill-strip { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 6px; margin-bottom: 12px; }
+    .pill {
+      padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border);
+      background: var(--bg-card); color: var(--muted); font-size: 12px; font-weight: 600; white-space: nowrap; cursor: pointer;
+    }
+    .pill.active { background: var(--accent); color: #052e16; border-color: var(--accent); }
+
+    .modal-backdrop {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 100;
+      display: none; place-items: center; padding: 14px;
+    }
+    .modal-backdrop.open { display: grid; }
+    .modal {
+      background: var(--bg-card); border: 1px solid var(--border); border-radius: 14px;
+      width: 100%; max-width: 540px; max-height: 90vh; overflow-y: auto; padding: 18px;
+    }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 12px 0; }
+    .form-field { display: flex; flex-direction: column; gap: 4px; }
+    .form-field.full { grid-column: 1 / -1; }
+    .form-field label { font-size: 12px; color: var(--muted); font-weight: 600; }
+    .modal-footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+
+    .chart-box { position: relative; width: 100%; min-height: 220px; }
+    svg.chart { width: 100%; height: 240px; overflow: visible; }
+    .chart-tooltip {
+      position: fixed; pointer-events: none; background: #0f172a; color: #fff;
+      border: 1px solid var(--accent); padding: 6px 10px; border-radius: 8px; font-size: 12px;
+      display: none; z-index: 200;
+    }
+
+    .player-link { color: var(--blue); cursor: pointer; font-weight: 600; }
+    .toast {
+      position: fixed; bottom: 18px; right: 18px; left: 18px; max-width: 420px; margin: 0 auto;
+      background: var(--accent); color: #052e16; text-align: center;
+      padding: 10px 16px; border-radius: 10px; font-weight: 700; font-size: 13px;
+      display: none; z-index: 300; box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+    }
+    footer {
+      text-align: center; padding: 20px; color: var(--muted); font-size: 12px; border-top: 1px solid var(--border); margin-top: 24px;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="brand-icon">3B</div>
+    <div>
+      <h1>3-Bant Bilardo Dashboard</h1>
+      <small id="dataSummaryBadge">Veriler yükleniyor...</small>
+    </div>
+  </div>
+  <div class="header-actions">
+    <input type="file" id="xlsxInput" accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" style="display:none" />
+    <button class="btn-primary admin-only" onclick="document.getElementById('xlsxInput').click()">📂 Excel Yükle</button>
+    <button class="admin-only" onclick="exportToExcel()">⬇️ Excel İndir</button>
+    <button class="admin-only" onclick="openNewTournamentModal()">➕ Yeni Turnuva</button>
+    <button class="visitor-only" onclick="openAdminModal()">🔐 Yönetici Girişi</button>
+    <button onclick="toggleTheme()" title="Tema Değiştir">🌓</button>
+  </div>
+</header>
+
+<div class="admin-bar admin-only">
+  <div>
+    <strong>🛡️ Yönetici Modu</strong>
+    <span id="adminRepoLabel" style="color:var(--muted); margin-left:6px;"></span>
+    <span id="unsavedFlag" style="color:var(--gold); font-weight:700; margin-left:6px; display:none;">• Yayınlanmamış değişiklik!</span>
+  </div>
+  <div style="display:flex; gap:8px; flex-wrap:wrap;">
+    <button id="btnPublishLive" class="btn-gold btn-sm" onclick="publishToGitHub()">🚀 Canlıya Yayınla</button>
+    <button class="btn-sm" onclick="exportDataJson()">📄 data.json İndir</button>
+    <button class="btn-danger btn-sm" onclick="logoutAdmin()">🚪 Çıkış</button>
+  </div>
+</div>
+
+<nav class="tabs">
+  <button class="tab-btn active" data-tab="overview">📊 Genel Bakış</button>
+  <button class="tab-btn" data-tab="tournaments">🏆 Turnuvalar <span class="admin-only">& Editör</span></button>
+  <button class="tab-btn" data-tab="athletes">🎯 Sporcular</button>
+  <button class="tab-btn" data-tab="compare">⚔️ Karşılaştır</button>
+  <button class="tab-btn admin-only" data-tab="data">⚙️ Veri & Yedek</button>
+</nav>
+
+<main>
+  <div id="dropZone" class="import-banner admin-only">
+    <div>
+      <strong>💡 Excel (.xlsx) Yükleyin:</strong>
+      <span style="color:var(--muted); font-size:13px;">
+        Tüm turnuva sekmelerini içeren Excel dosyanızı seçin; ardından <b>Canlıya Yayınla</b> veya <b>data.json İndir</b> butonunu kullanın.
+      </span>
+    </div>
+    <button class="btn-sm btn-primary" onclick="document.getElementById('xlsxInput').click()">📂 Excel Seç</button>
+  </div>
+
+  <!-- 1. GENEL BAKIŞ -->
+  <section id="tab-overview" class="section active">
+    <div class="kpi-grid" id="overviewKpis"></div>
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-header"><h3 class="card-title">Turnuva Katılım & Ortalama Trendi</h3></div>
+        <div class="chart-box" id="chartTournamentTrend"></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><h3 class="card-title">En Başarılı Sporcular</h3></div>
+        <div class="chart-box" id="chartChampions"></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><h3 class="card-title">Turnuva Şampiyonları ve Rekorlar Tarihi</h3></div>
+      <div class="table-wrap">
+        <table id="championsHistoryTable">
+          <thead>
+            <tr>
+              <th>Turnuva</th><th class="num">Katılımcı</th><th>Şampiyon (1.)</th><th class="num">Şamp. G.ORT</th>
+              <th>Finalist (2.)</th><th>Yarı Final (3-4)</th><th class="num">Turnuva Ort.</th>
+              <th>En Yüksek Seri</th><th>En Yüksek EYO</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2. TURNUVALAR -->
+  <section id="tab-tournaments" class="section">
+    <div class="pill-strip" id="tournamentPills"></div>
+    <div class="kpi-grid" id="tournamentKpis"></div>
+    <div class="card">
+      <div class="toolbar">
+        <input type="text" id="tSearch" placeholder="Sporcu adı ara..." oninput="renderTournamentTable()" />
+        <select id="tRoundFilter" onchange="renderTournamentTable()">
+          <option value="ALL">Tüm Turlar</option>
+          <option value="FİNAL">FİNAL</option>
+          <option value="1/2">1/2 (Yarı Final)</option>
+          <option value="1/4">1/4 (Çeyrek Final)</option>
+          <option value="1/8">1/8</option>
+          <option value="1/16">1/16</option>
+          <option value="OTHER">Grup / Eleme Turları</option>
+        </select>
+        <button class="btn-primary admin-only" onclick="openPlayerRowModal()">➕ Sporcu Ekle</button>
+        <button class="admin-only" onclick="autoCalcPointsForCurrent()">🧮 Puan Hesapla</button>
+        <button class="admin-only" onclick="rerankCurrentByAvg()">🔢 Derece Yenile</button>
+        <button class="admin-only" onclick="renameCurrentTournament()">✏️ Ad Değiştir</button>
+        <button class="btn-danger admin-only" onclick="deleteCurrentTournament()">🗑️ Sil</button>
+      </div>
+      <div class="table-wrap" style="max-height:600px;">
+        <table id="tournamentTable">
+          <thead>
+            <tr>
+              <th class="num" onclick="sortTournamentBy('derece')">Der.</th>
+              <th onclick="sortTournamentBy('ad')">Adı Soyadı</th>
+              <th onclick="sortTournamentBy('tur')">Tur</th>
+              <th class="num" onclick="sortTournamentBy('grp')">Grup</th>
+              <th class="num" onclick="sortTournamentBy('sayi')">Sayı</th>
+              <th class="num" onclick="sortTournamentBy('el')">El</th>
+              <th class="num" onclick="sortTournamentBy('ort')">G. Ort</th>
+              <th class="num" onclick="sortTournamentBy('eys1')">EYS1</th>
+              <th class="num" onclick="sortTournamentBy('eys2')">EYS2</th>
+              <th class="num" onclick="sortTournamentBy('eyo')">EYO</th>
+              <th class="num" onclick="sortTournamentBy('puan')">Puan</th>
+              <th class="admin-only">İşlem</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. SPORCULAR -->
+  <section id="tab-athletes" class="section">
+    <div id="athleteDetailPanel" class="card" style="display:none; margin-bottom:16px;">
+      <div class="card-header">
+        <div><h2 id="adName" style="margin:0;"></h2><small id="adSub" style="color:var(--muted);"></small></div>
+        <button onclick="document.getElementById('athleteDetailPanel').style.display='none'">✖ Kapat</button>
+      </div>
+      <div class="kpi-grid" id="adKpis"></div>
+      <div class="grid-2">
+        <div class="card" style="background:var(--bg);">
+          <h4 class="card-title" style="margin-bottom:8px;">Genel Ortalama (G.ORT) Gelişimi</h4>
+          <div class="chart-box" id="chartAthleteOrt"></div>
+        </div>
+        <div class="card" style="background:var(--bg);">
+          <h4 class="card-title" style="margin-bottom:8px;">Derece Grafiği (Düşük = Daha İyi)</h4>
+          <div class="chart-box" id="chartAthleteRank"></div>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table id="athleteHistoryTable">
+          <thead>
+            <tr>
+              <th>Turnuva</th><th class="num">Der.</th><th>Tur</th><th class="num">Grup</th>
+              <th class="num">Sayı</th><th class="num">El</th><th class="num">G. Ort</th>
+              <th class="num">EYS1</th><th class="num">EYS2</th><th class="num">EYO</th>
+              <th class="num">Puan</th><th class="admin-only">Düzenle</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="toolbar">
+        <input type="text" id="aSearch" placeholder="Sporcu ara..." oninput="renderAthletesTable()" />
+        <label style="font-size:13px; color:var(--muted);">Min. Katılım:
+          <select id="aMinTour" onchange="renderAthletesTable()">
+            <option value="1">1+ Turnuva</option><option value="2">2+ Turnuva</option>
+            <option value="5">5+ Turnuva</option><option value="10">10+ Turnuva</option>
+          </select>
+        </label>
+      </div>
+      <div class="table-wrap" style="max-height:600px;">
+        <table id="athletesTable">
+          <thead>
+            <tr>
+              <th onclick="sortAthletesBy('ad')">Sporcu</th>
+              <th class="num" onclick="sortAthletesBy('katilim')">Katılım</th>
+              <th class="num" onclick="sortAthletesBy('samp')">1.</th><th class="num" onclick="sortAthletesBy('iki')">2.</th>
+              <th class="num" onclick="sortAthletesBy('sf')">1/2</th><th class="num" onclick="sortAthletesBy('qf')">1/4</th>
+              <th class="num" onclick="sortAthletesBy('puan')">Puan</th><th class="num" onclick="sortAthletesBy('sayi')">Sayı</th>
+              <th class="num" onclick="sortAthletesBy('el')">El</th><th class="num" onclick="sortAthletesBy('kariyerOrt')">Kariyer Ort.</th>
+              <th class="num" onclick="sortAthletesBy('bestOrt')">En İyi Ort.</th><th class="num" onclick="sortAthletesBy('maxEys1')">EYS1</th>
+              <th class="num" onclick="sortAthletesBy('maxEyo')">EYO</th><th class="num" onclick="sortAthletesBy('bestRank')">En İyi</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4. KARŞILAŞTIRMA -->
+  <section id="tab-compare" class="section">
+    <div class="card" style="margin-bottom:14px;">
+      <div class="toolbar">
+        <label>1. Sporcu: <select id="cmpP1" onchange="renderCompare()"></select></label>
+        <label>2. Sporcu: <select id="cmpP2" onchange="renderCompare()"></select></label>
+      </div>
+    </div>
+    <div class="grid-2" id="cmpSummaryGrid"></div>
+    <div class="card">
+      <div class="card-header"><h3 class="card-title">Genel Ortalama Karşılaştırması</h3></div>
+      <div class="chart-box" id="chartCompare"></div>
+    </div>
+  </section>
+
+  <!-- 5. VERİ YÖNETİMİ -->
+  <section id="tab-data" class="section admin-only">
+    <div class="grid-2">
+      <div class="card">
+        <h3 class="card-title">Canlı Yayın & Excel</h3>
+        <p style="color:var(--muted); font-size:13px;">Excel yükleyip düzenleme yaptıktan sonra <b>Canlıya Yayınla</b> veya <b>data.json İndir</b> butonlarını kullanın.</p>
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+          <button class="btn-primary" onclick="document.getElementById('xlsxInput').click()">📂 Excel Yükle</button>
+          <button onclick="exportToExcel()">⬇️ Excel İndir</button>
+          <button class="btn-gold" onclick="exportDataJson()">📄 data.json İndir</button>
+        </div>
+      </div>
+      <div class="card">
+        <h3 class="card-title">JSON Yedekleme</h3>
+        <p style="color:var(--muted); font-size:13px;">Yedek dosyasını içe aktarabilir veya canlı sunucu verisini yenileyebilirsiniz.</p>
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+          <button onclick="exportDataJson()">💾 JSON İndir</button>
+          <input type="file" id="jsonInput" accept=".json,application/json" style="display:none" />
+          <button onclick="document.getElementById('jsonInput').click()">📥 JSON Yükle</button>
+          <button class="btn-danger" onclick="reloadLiveData()">🔄 Sunucudan Yenile</button>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  3-Bant Bilardo Turnuva Arşivi • <span class="visitor-only" style="cursor:pointer; text-decoration:underline;" onclick="openAdminModal()">Yönetici Girişi</span><span class="admin-only">Yönetici Oturumu Açık</span>
+</footer>
+
+<!-- MODAL: YÖNETİCİ GİRİŞİ -->
+<div class="modal-backdrop" id="adminModal">
+  <div class="modal">
+    <h3 style="margin-top:0;">🔐 Yönetici Girişi</h3>
+    <p style="font-size:13px; color:var(--muted); margin-top:0;">
+      GitHub Pages üzerinde canlı yayın için Token bilgilerinizi girin. Telefondan yerel dosya açtıysanız aşağıdaki <b>Yerel Hazırlık Modu</b> ile Excel'i <code>data.json</code>'a çevirebilirsiniz.
+    </p>
+    <div class="form-grid">
+      <div class="form-field"><label>GitHub Kullanıcı Adı</label><input type="text" id="ghOwner" placeholder="orn: kullaniciadi" /></div>
+      <div class="form-field"><label>Repo Adı</label><input type="text" id="ghRepo" placeholder="orn: bilardo-dashboard" /></div>
+      <div class="form-field full"><label>GitHub Fine-Grained Token</label><input type="password" id="ghToken" placeholder="github_pat_..." /></div>
+      <div class="form-field full" style="flex-direction:row; align-items:center; gap:8px;">
+        <input type="checkbox" id="ghRemember" checked style="width:auto;" />
+        <label for="ghRemember" style="margin:0;">Bu cihazda oturumu hatırla</label>
+      </div>
+    </div>
+    <div id="adminErr" style="color:var(--red); font-size:13px; display:none; margin-bottom:8px;"></div>
+    <div class="modal-footer">
+      <button id="btnLocalPrep" class="btn-gold" style="display:none; margin-right:auto;" onclick="enterLocalPrepMode()">💻 Yerel Hazırlık Modu</button>
+      <button onclick="document.getElementById('adminModal').classList.remove('open')">İptal</button>
+      <button class="btn-primary" id="btnVerifyGh" onclick="verifyAdminLogin()">🔓 Giriş Yap</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: SATIR EKLE / DÜZENLE -->
+<div class="modal-backdrop" id="rowModal">
+  <div class="modal">
+    <h3 id="rowModalTitle" style="margin-top:0;">Sporcu Kaydı</h3>
+    <div class="form-grid">
+      <div class="form-field full"><label>Adı Soyadı</label><input type="text" id="fAd" list="playerNamesList" /><datalist id="playerNamesList"></datalist></div>
+      <div class="form-field"><label>Derece</label><input type="number" id="fDerece" min="1" /></div>
+      <div class="form-field"><label>Elendiği Tur</label><input type="text" id="fTur" oninput="suggestModalPoints()" /></div>
+      <div class="form-field"><label>Grup Derecesi</label><input type="number" id="fGrp" min="1" oninput="suggestModalPoints()" /></div>
+      <div class="form-field"><label>Puan</label><input type="number" id="fPuan" /></div>
+      <div class="form-field"><label>Toplam Sayı</label><input type="number" id="fSayi" min="0" oninput="calcModalOrt()" /></div>
+      <div class="form-field"><label>Toplam El</label><input type="number" id="fEl" min="1" oninput="calcModalOrt()" /></div>
+      <div class="form-field"><label>Genel Ortalama</label><input type="text" id="fOrt" readonly style="opacity:0.8;" /></div>
+      <div class="form-field"><label>En Yüksek Ort. (EYO)</label><input type="number" id="fEyo" step="0.0001" min="0" /></div>
+      <div class="form-field"><label>EYS1</label><input type="number" id="fEys1" min="0" /></div>
+      <div class="form-field"><label>EYS2</label><input type="number" id="fEys2" min="0" /></div>
+    </div>
+    <div class="modal-footer">
+      <button onclick="closeRowModal()">İptal</button>
+      <button class="btn-primary" onclick="saveRowModal()">💾 Kaydet</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: YENİ TURNUVA -->
+<div class="modal-backdrop" id="newTourModal">
+  <div class="modal">
+    <h3 style="margin-top:0;">Yeni Turnuva Ekle</h3>
+    <div class="form-grid">
+      <div class="form-field full"><label>Turnuva Adı</label><input type="text" id="ntName" placeholder="Örn: 2027-1" /></div>
+      <div class="form-field full">
+        <label>Şablon</label>
+        <select id="ntTemplate">
+          <option value="EMPTY">Boş Turnuva</option>
+          <option value="COPY_LAST">Son Turnuvadan Sporcuları Kopyala</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button onclick="document.getElementById('newTourModal').classList.remove('open')">İptal</button>
+      <button class="btn-primary" onclick="createNewTournament()">➕ Oluştur</button>
+    </div>
+  </div>
+</div>
+
+<div class="chart-tooltip" id="chartTooltip"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+const safeStorage = {
+  get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} },
+  remove(k) { try { localStorage.removeItem(k); } catch (e) {} }
+};
+
+const FALLBACK_DB = {
+  tournaments: [{
+    name: "2026-2",
+    rows: [
+      [1,"ASIM AYDEMİR","FİNAL",1,235,251,0.9363,7,6,1.3043,54],
+      [2,"BÜLENT ŞAHİN","FİNAL",2,225,257,0.8755,6,5,1.2121,36],
+      [3,"VOLKAN YILMAZ","1/2",3,240,310,0.7742,8,6,0.9459,26],
+      [4,"BEHLÜL KOZLUCA","1/2",4,196,240,0.8167,8,7,1.1111,26]
+    ]
+  }]
+};
+
+const DRAFT_KEY = "bilardo_admin_draft_v2";
+const AUTH_KEY = "bilardo_gh_auth_v2";
+let DB = { tournaments: [] };
+let currentTourIdx = 0;
+let isAdmin = false;
+let ghCreds = null;
+let tSort = { key: "derece", dir: 1 };
+let aSort = { key: "samp", dir: -1 };
+let editingRowIdx = null;
+let editingTourIdx = null;
+
+function normalizeDB(db) {
+  return {
+    tournaments: (db.tournaments || []).map(t => ({
+      name: t.name,
+      rows: (t.rows || []).map(r => Array.isArray(r) ? {
+        derece: r[0], ad: r[1], tur: r[2], grp: r[3],
+        sayi: r[4], el: r[5], ort: r[6], eys1: r[7], eys2: r[8], eyo: r[9],
+        puan: r[10] ?? null
+      } : r)
+    }))
+  };
+}
+
+function showToast(msg) {
+  const el = document.getElementById("toast");
+  el.textContent = msg; el.style.display = "block";
+  clearTimeout(el._t); el._t = setTimeout(() => el.style.display = "none", 3000);
+}
+function toggleTheme() { document.body.classList.toggle("light"); }
+
+function cleanRound(val) {
+  let s = String(val ?? "").replace(/[\u2007\u00A0]/g, " ").trim().toUpperCase();
+  if (s === "FINAL" || s === "FİNAL") return "FİNAL";
+  if (/^1\/2|0?1\.?0?2|1-ŞUB|1-FEB/.test(s)) return "1/2";
+  if (/^1\/4|0?1\.?0?4|1-NİS|1-APR/.test(s)) return "1/4";
+  if (/^1\/8|0?1\.?0?8|1-AĞU|1-AUG/.test(s)) return "1/8";
+  if (/^1\/16|16-OCA|16-JAN/.test(s)) return "1/16";
+  return s;
+}
+
+function roundBadgeClass(tur, grp) {
+  const t = cleanRound(tur);
+  if (t === "FİNAL" && Number(grp) === 1) return "b-champ";
+  if (t === "FİNAL") return "b-final";
+  if (t === "1/2") return "b-sf";
+  if (t === "1/4") return "b-qf";
+  if (t === "1/8") return "b-16";
+  if (t === "1/16") return "b-32";
+  return "b-grp";
+}
+
+function calcRulePoints(tur, grp) {
+  const t = cleanRound(tur), g = Number(grp);
+  if (t === "FİNAL") return g === 1 ? 54 : 36;
+  if (t === "1/2") return 26;
+  if (t === "1/4") return 18;
+  if (t === "1/8") return 10;
+  if (t === "1/16") return 8;
+  const n = Number(t);
+  if (n >= 2) return g === 2 ? 7 : 6;
+  if (n === 1) return g === 2 ? 5 : 4;
+  return null;
+}
+
+function fmt(n, dec = 4) {
+  return (n === null || n === undefined || isNaN(n)) ? "-" : Number(n).toFixed(dec);
+}
+
+function updateSummaryBadge() {
+  const totalRows = DB.tournaments.reduce((s, t) => s + t.rows.length, 0);
+  const players = new Set();
+  DB.tournaments.forEach(t => t.rows.forEach(r => players.add(r.ad)));
+  document.getElementById("dataSummaryBadge").textContent =
+    `${DB.tournaments.length} Turnuva • ${players.size} Sporcu • ${totalRows} Kayıt`;
+}
+
+async function initApp() {
+  try {
+    const savedAuth = safeStorage.get(AUTH_KEY);
+    if (savedAuth) {
+      const creds = JSON.parse(savedAuth);
+      if (creds.token && creds.owner && creds.repo) {
+        const ok = await checkGhPermissions(creds.owner, creds.repo, creds.token);
+        if (ok) enableAdminMode(creds);
+      }
+    }
+  } catch (e) {}
+  await loadLiveData(true);
+}
+
+async function loadLiveData(preferDraftIfAdmin = false) {
+  if (preferDraftIfAdmin && isAdmin) {
+    const draft = safeStorage.get(DRAFT_KEY);
+    if (draft) {
+      DB = normalizeDB(JSON.parse(draft));
+      currentTourIdx = Math.max(0, DB.tournaments.length - 1);
+      document.getElementById("unsavedFlag").style.display = "inline";
+      renderAll();
+      return;
+    }
+  }
+  if (window.location.protocol.startsWith("http")) {
+    try {
+      const res = await fetch("./data.json?t=" + Date.now(), { cache: "no-store" });
+      if (res.ok) {
+        DB = normalizeDB(await res.json());
+        currentTourIdx = Math.max(0, DB.tournaments.length - 1);
+        renderAll();
+        return;
+      }
+    } catch (e) {}
+  }
+  const localDraft = safeStorage.get(DRAFT_KEY);
+  DB = normalizeDB(localDraft ? JSON.parse(localDraft) : FALLBACK_DB);
+  currentTourIdx = Math.max(0, DB.tournaments.length - 1);
+  renderAll();
+}
+
+async function reloadLiveData() {
+  if (!confirm("Sunucudaki data.json verisi yeniden çekilsin mi?")) return;
+  safeStorage.remove(DRAFT_KEY);
+  document.getElementById("unsavedFlag").style.display = "none";
+  await loadLiveData(false);
+  showToast("Sunucu verisi yüklendi.");
+}
+
+function markDirty() {
+  if (!isAdmin) return;
+  safeStorage.set(DRAFT_KEY, JSON.stringify(DB));
+  document.getElementById("unsavedFlag").style.display = "inline";
+  updateSummaryBadge();
+}
+
+function openAdminModal() {
+  if (location.hostname.endsWith("github.io")) {
+    const owner = location.hostname.split(".")[0];
+    const repo = location.pathname.split("/").filter(Boolean)[0] || `${owner}.github.io`;
+    if (!document.getElementById("ghOwner").value) document.getElementById("ghOwner").value = owner;
+    if (!document.getElementById("ghRepo").value) document.getElementById("ghRepo").value = repo;
+  }
+  const isLocalEnv = ["file:", "content:", "blob:"].includes(location.protocol) ||
+    ["localhost", "127.0.0.1", ""].includes(location.hostname);
+  document.getElementById("btnLocalPrep").style.display = isLocalEnv ? "inline-flex" : "none";
+  document.getElementById("adminErr").style.display = "none";
+  document.getElementById("adminModal").classList.add("open");
+}
+
+async function checkGhPermissions(owner, repo, token) {
+  const res = await fetch(`https://api.github.com/repos/${owner}/${repo}`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json" }
+  });
+  if (!res.ok) return false;
+  const info = await res.json();
+  return !!(info.permissions && (info.permissions.push || info.permissions.admin || info.permissions.maintain));
+}
+
+async function verifyAdminLogin() {
+  const owner = document.getElementById("ghOwner").value.trim();
+  const repo = document.getElementById("ghRepo").value.trim();
+  const token = document.getElementById("ghToken").value.trim();
+  const errEl = document.getElementById("adminErr");
+  if (!owner || !repo || !token) {
+    errEl.textContent = "Lütfen tüm alanları doldurun."; errEl.style.display = "block"; return;
+  }
+  const btn = document.getElementById("btnVerifyGh");
+  btn.textContent = "Doğrulanıyor..."; btn.disabled = true;
+  try {
+    const ok = await checkGhPermissions(owner, repo, token);
+    if (!ok) {
+      errEl.textContent = "Token geçersiz veya repo yazma yetkisi yok."; errEl.style.display = "block";
+    } else {
+      const creds = { owner, repo, token };
+      if (document.getElementById("ghRemember").checked) safeStorage.set(AUTH_KEY, JSON.stringify(creds));
+      enableAdminMode(creds);
+      document.getElementById("adminModal").classList.remove("open");
+      showToast("Yönetici girişi başarılı!");
+    }
+  } catch (e) {
+    errEl.textContent = "Bağlantı hatası: " + e.message; errEl.style.display = "block";
+  } finally {
+    btn.textContent = "🔓 Giriş Yap"; btn.disabled = false;
+  }
+}
+
+function enterLocalPrepMode() {
+  enableAdminMode({ owner: "yerel", repo: "hazirlik", token: "" });
+  document.getElementById("adminModal").classList.remove("open");
+  showToast("Yerel hazırlık modu açıldı! Excel yükleyip data.json indirebilirsiniz.");
+}
+
+function enableAdminMode(creds) {
+  isAdmin = true; ghCreds = creds;
+  document.body.classList.add("admin-mode");
+  document.getElementById("adminRepoLabel").textContent = `(${creds.owner}/${creds.repo})`;
+  document.getElementById("btnPublishLive").style.display = creds.token ? "inline-flex" : "none";
+}
+
+function logoutAdmin() {
+  isAdmin = false; ghCreds = null; safeStorage.remove(AUTH_KEY);
+  document.body.classList.remove("admin-mode");
+  if (document.getElementById("tab-data").classList.contains("active")) {
+    document.querySelector('[data-tab="overview"]').click();
+  }
+  showToast("Çıkış yapıldı.");
+}
+
+function utf8ToBase64(str) {
+  const bytes = new TextEncoder().encode(str);
+  let bin = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(bin);
+}
+
+async function publishToGitHub() {
+  if (!isAdmin || !ghCreds?.token) return alert("Canlı yayın için GitHub Token ile giriş yapmalısınız.");
+  const btn = document.getElementById("btnPublishLive");
+  btn.textContent = "⏳ Yayınlanıyor..."; btn.disabled = true;
+  const apiUrl = `https://api.github.com/repos/${ghCreds.owner}/${ghCreds.repo}/contents/data.json`;
+  const headers = {
+    Authorization: `Bearer ${ghCreds.token}`,
+    Accept: "application/vnd.github+json",
+    "Content-Type": "application/json"
+  };
+  try {
+    let sha = undefined;
+    const getRes = await fetch(apiUrl, { headers });
+    if (getRes.ok) sha = (await getRes.json()).sha;
+    const payload = {
+      message: `Turnuva verileri güncellendi (${new Date().toLocaleString("tr-TR")})`,
+      content: utf8ToBase64(JSON.stringify(DB))
+    };
+    if (sha) payload.sha = sha;
+    const putRes = await fetch(apiUrl, { method: "PUT", headers, body: JSON.stringify(payload) });
+    if (!putRes.ok) throw new Error((await putRes.json()).message || putRes.statusText);
+    safeStorage.remove(DRAFT_KEY);
+    document.getElementById("unsavedFlag").style.display = "none";
+    showToast("✅ Canlıya gönderildi! Site 20-40 sn içinde güncellenecek.");
+  } catch (e) {
+    alert("Yayınlama hatası: " + e.message);
+  } finally {
+    btn.textContent = "🚀 Canlıya Yayınla"; btn.disabled = false;
+  }
+}
+
+document.querySelectorAll(".tab-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+    document.querySelectorAll(".section").forEach(s => s.classList.remove("active"));
+    btn.classList.add("active");
+    document.getElementById("tab-" + btn.dataset.tab).classList.add("active");
+    renderAll();
+  });
+});
+
+function computeAthleteStats() {
+  const map = new Map();
+  DB.tournaments.forEach((t, ti) => {
+    t.rows.forEach((r, ri) => {
+      const name = String(r.ad).trim().toLocaleUpperCase("tr-TR");
+      if (!map.has(name)) {
+        map.set(name, {
+          ad: name, katilim: 0, samp: 0, iki: 0, sf: 0, qf: 0,
+          puan: 0, hasPuan: false, sayi: 0, el: 0,
+          bestOrt: 0, maxEys1: 0, maxEyo: 0, bestRank: 9999, history: []
+        });
+      }
+      const a = map.get(name), tur = cleanRound(r.tur);
+      a.katilim++;
+      if (r.derece === 1 || (tur === "FİNAL" && r.grp === 1)) a.samp++;
+      else if (r.derece === 2 || (tur === "FİNAL" && r.grp === 2)) a.iki++;
+      else if (tur === "1/2") a.sf++;
+      else if (tur === "1/4") a.qf++;
+      if (r.puan !== null && r.puan !== "" && !isNaN(r.puan)) { a.puan += Number(r.puan); a.hasPuan = true; }
+      a.sayi += Number(r.sayi) || 0; a.el += Number(r.el) || 0;
+      a.bestOrt = Math.max(a.bestOrt, Number(r.ort) || 0);
+      a.maxEys1 = Math.max(a.maxEys1, Number(r.eys1) || 0);
+      a.maxEyo = Math.max(a.maxEyo, Number(r.eyo) || 0);
+      a.bestRank = Math.min(a.bestRank, Number(r.derece) || 9999);
+      a.history.push({ ti, ri, tourName: t.name, ...r, tur });
+    });
+  });
+  return Array.from(map.values()).map(a => ({ ...a, kariyerOrt: a.el > 0 ? a.sayi / a.el : 0 }));
+}
+
+function renderOverview() {
+  const athletes = computeAthleteStats();
+  let maxOrt = { val: 0, ad: "-", t: "" }, maxEys1 = { val: 0, ad: "-", t: "" }, maxEyo = { val: 0, ad: "-", t: "" };
+  let sumSayi = 0, sumEl = 0;
+  DB.tournaments.forEach(t => t.rows.forEach(r => {
+    sumSayi += Number(r.sayi) || 0; sumEl += Number(r.el) || 0;
+    if (r.ort > maxOrt.val) maxOrt = { val: r.ort, ad: r.ad, t: t.name };
+    if (r.eys1 > maxEys1.val) maxEys1 = { val: r.eys1, ad: r.ad, t: t.name };
+    if (r.eyo > maxEyo.val) maxEyo = { val: r.eyo, ad: r.ad, t: t.name };
+  }));
+
+  document.getElementById("overviewKpis").innerHTML = `
+    <div class="card"><div class="kpi-label">Toplam Turnuva</div><div class="kpi-val">${DB.tournaments.length}</div><div class="kpi-sub">${DB.tournaments[0]?.name || "-"} → ${DB.tournaments.at(-1)?.name || "-"}</div></div>
+    <div class="card"><div class="kpi-label">Tekil Sporcu</div><div class="kpi-val">${athletes.length}</div><div class="kpi-sub">${sumSayi.toLocaleString("tr-TR")} Sayı / ${sumEl.toLocaleString("tr-TR")} El</div></div>
+    <div class="card"><div class="kpi-label">En Yüksek G.ORT</div><div class="kpi-val">${fmt(maxOrt.val)}</div><div class="kpi-sub">${maxOrt.ad} (${maxOrt.t})</div></div>
+    <div class="card"><div class="kpi-label">En Yüksek Seri</div><div class="kpi-val">${maxEys1.val}</div><div class="kpi-sub">${maxEys1.ad} (${maxEys1.t})</div></div>
+    <div class="card"><div class="kpi-label">En Yüksek EYO</div><div class="kpi-val">${fmt(maxEyo.val)}</div><div class="kpi-sub">${maxEyo.ad} (${maxEyo.t})</div></div>
+  `;
+
+  document.querySelector("#championsHistoryTable tbody").innerHTML = [...DB.tournaments].reverse().map(t => {
+    const r1 = t.rows.find(r => r.derece === 1) || t.rows[0];
+    const r2 = t.rows.find(r => r.derece === 2) || t.rows[1];
+    const sf = t.rows.filter(r => cleanRound(r.tur) === "1/2").map(r => r.ad).join(", ");
+    const totS = t.rows.reduce((s, r) => s + (r.sayi || 0), 0), totE = t.rows.reduce((s, r) => s + (r.el || 0), 0);
+    const bestEys = t.rows.reduce((m, r) => (r.eys1 > m.eys1 ? r : m), { eys1: 0, ad: "-" });
+    const bestEyo = t.rows.reduce((m, r) => (r.eyo > m.eyo ? r : m), { eyo: 0, ad: "-" });
+    return `<tr>
+      <td><b>${t.name}</b></td><td class="num">${t.rows.length}</td>
+      <td><span class="badge b-champ">1.</span> <span class="player-link" onclick="openAthleteDetail('${r1?.ad || ""}')">${r1?.ad || "-"}</span></td>
+      <td class="num">${fmt(r1?.ort)}</td>
+      <td><span class="player-link" onclick="openAthleteDetail('${r2?.ad || ""}')">${r2?.ad || "-"}</span></td>
+      <td style="max-width:200px; overflow:hidden; text-overflow:ellipsis;">${sf || "-"}</td>
+      <td class="num">${totE ? fmt(totS / totE) : "-"}</td>
+      <td><b>${bestEys.eys1}</b> <small style="color:var(--muted)">(${bestEys.ad})</small></td>
+      <td><b>${fmt(bestEyo.eyo)}</b> <small style="color:var(--muted)">(${bestEyo.ad})</small></td>
+    </tr>`;
+  }).join("");
+
+  drawTrendChart(); drawChampionsBarChart(athletes);
+}
+
+const tooltip = document.getElementById("chartTooltip");
+function attachTooltip(el, html) {
+  el.addEventListener("mousemove", e => {
+    tooltip.innerHTML = html; tooltip.style.display = "block";
+    tooltip.style.left = (e.clientX + 12) + "px"; tooltip.style.top = (e.clientY - 28) + "px";
+  });
+  el.addEventListener("mouseleave", () => tooltip.style.display = "none");
+}
+
+function drawTrendChart() {
+  const box = document.getElementById("chartTournamentTrend"); box.innerHTML = "";
+  const data = DB.tournaments.map(t => {
+    const s = t.rows.reduce((a, r) => a + (r.sayi || 0), 0), e = t.rows.reduce((a, r) => a + (r.el || 0), 0);
+    return { name: t.name, count: t.rows.length, avg: e ? s / e : 0 };
+  });
+  if (!data.length) return;
+  const W = 560, H = 230, padL = 42, padR = 44, padT = 20, padB = 34, cw = W - padL - padR, ch = H - padT - padB;
+  const maxC = Math.max(...data.map(d => d.count), 10), maxA = Math.max(...data.map(d => d.avg), 0.8) * 1.1;
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`); svg.classList.add("chart");
+  const step = cw / data.length, barW = Math.min(26, step * 0.55), pts = [];
+  data.forEach((d, i) => {
+    const x = padL + i * step + step / 2, bh = (d.count / maxC) * ch;
+    const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+    rect.setAttribute("x", x - barW / 2); rect.setAttribute("y", padT + ch - bh);
+    rect.setAttribute("width", barW); rect.setAttribute("height", bh); rect.setAttribute("rx", 4);
+    rect.setAttribute("fill", "rgba(56, 189, 248, 0.38)");
+    attachTooltip(rect, `<b>${d.name}</b><br>Katılımcı: ${d.count}<br>Ort: ${d.avg.toFixed(4)}`); svg.appendChild(rect);
+    pts.push(`${x},${padT + ch - (d.avg / maxA) * ch}`);
+    const lbl = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    lbl.setAttribute("x", x); lbl.setAttribute("y", H - 8); lbl.setAttribute("text-anchor", "middle");
+    lbl.setAttribute("font-size", data.length > 10 ? "9" : "11"); lbl.setAttribute("fill", "var(--muted)");
+    lbl.textContent = d.name; svg.appendChild(lbl);
+  });
+  const path = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
+  path.setAttribute("fill", "none"); path.setAttribute("stroke", "#10b981"); path.setAttribute("stroke-width", "2.5");
+  path.setAttribute("points", pts.join(" ")); svg.appendChild(path);
+  data.forEach((d, i) => {
+    const [x, y] = pts[i].split(",");
+    const c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    c.setAttribute("cx", x); c.setAttribute("cy", y); c.setAttribute("r", 4.5);
+    c.setAttribute("fill", "#10b981"); c.setAttribute("stroke", "#0b1120"); c.setAttribute("stroke-width", "1.5");
+    attachTooltip(c, `<b>${d.name}</b><br>Ort: ${d.avg.toFixed(4)}<br>Katılımcı: ${d.count}`); svg.appendChild(c);
+  });
+  box.appendChild(svg);
+}
+
+function drawChampionsBarChart(athletes) {
+  const box = document.getElementById("chartChampions"); box.innerHTML = "";
+  const top = athletes.filter(a => a.samp > 0 || a.iki > 0)
+    .sort((a, b) => (b.samp * 10 + b.iki) - (a.samp * 10 + a.iki)).slice(0, 8);
+  if (!top.length) return;
+  const W = 540, H = 230, padL = 135, padR = 40, padT = 10, padB = 14, ch = H - padT - padB;
+  const maxV = Math.max(...top.map(d => d.samp + d.iki), 2);
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`); svg.classList.add("chart");
+  const rowH = ch / top.length;
+  top.forEach((d, i) => {
+    const y = padT + i * rowH + 4, h = Math.max(12, rowH - 8);
+    const w1 = (d.samp / maxV) * (W - padL - padR), w2 = (d.iki / maxV) * (W - padL - padR);
+    const txt = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    txt.setAttribute("x", padL - 8); txt.setAttribute("y", y + h / 2 + 4); txt.setAttribute("text-anchor", "end");
+    txt.setAttribute("font-size", "11"); txt.setAttribute("fill", "var(--text)");
+    txt.textContent = d.ad.length > 17 ? d.ad.slice(0, 16) + "…" : d.ad; svg.appendChild(txt);
+    if (w1 > 0) {
+      const r1 = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+      r1.setAttribute("x", padL); r1.setAttribute("y", y); r1.setAttribute("width", w1); r1.setAttribute("height", h);
+      r1.setAttribute("rx", 3); r1.setAttribute("fill", "#f59e0b"); svg.appendChild(r1);
+    }
+    if (w2 > 0) {
+      const r2 = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+      r2.setAttribute("x", padL + w1 + 2); r2.setAttribute("y", y); r2.setAttribute("width", w2); r2.setAttribute("height", h);
+      r2.setAttribute("rx", 3); r2.setAttribute("fill", "#94a3b8"); svg.appendChild(r2);
+    }
+    const valTxt = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    valTxt.setAttribute("x", padL + w1 + w2 + 8); valTxt.setAttribute("y", y + h / 2 + 4);
+    valTxt.setAttribute("font-size", "11"); valTxt.setAttribute("fill", "var(--muted)");
+    valTxt.textContent = `${d.samp}🏆 ${d.iki}🥈`; svg.appendChild(valTxt);
+  });
+  box.appendChild(svg);
+}
+
+function renderTournamentView() {
+  if (currentTourIdx >= DB.tournaments.length) currentTourIdx = DB.tournaments.length - 1;
+  if (currentTourIdx < 0) return;
+  document.getElementById("tournamentPills").innerHTML = DB.tournaments.map((t, i) =>
+    `<div class="pill ${i === currentTourIdx ? "active" : ""}" onclick="selectTournament(${i})">${t.name} (${t.rows.length})</div>`
+  ).join("");
+  const t = DB.tournaments[currentTourIdx];
+  const r1 = t.rows.find(r => r.derece === 1) || t.rows[0];
+  const totS = t.rows.reduce((s, r) => s + (r.sayi || 0), 0), totE = t.rows.reduce((s, r) => s + (r.el || 0), 0);
+  const maxEys = t.rows.reduce((m, r) => r.eys1 > m.eys1 ? r : m, { eys1: 0, ad: "-" });
+  const maxEyo = t.rows.reduce((m, r) => r.eyo > m.eyo ? r : m, { eyo: 0, ad: "-" });
+  document.getElementById("tournamentKpis").innerHTML = `
+    <div class="card"><div class="kpi-label">Şampiyon</div><div class="kpi-val" style="font-size:18px;">${r1 ? r1.ad : "-"}</div><div class="kpi-sub">G.ORT: ${fmt(r1?.ort)} • EYS1: ${r1?.eys1 ?? "-"}</div></div>
+    <div class="card"><div class="kpi-label">Katılımcı</div><div class="kpi-val">${t.rows.length}</div><div class="kpi-sub">${totS.toLocaleString("tr-TR")} Sayı / ${totE.toLocaleString("tr-TR")} El</div></div>
+    <div class="card"><div class="kpi-label">Turnuva Ort.</div><div class="kpi-val">${totE ? fmt(totS / totE) : "-"}</div><div class="kpi-sub">Genel Verimlilik</div></div>
+    <div class="card"><div class="kpi-label">EYS1 Rekoru</div><div class="kpi-val">${maxEys.eys1}</div><div class="kpi-sub">${maxEys.ad}</div></div>
+    <div class="card"><div class="kpi-label">EYO Rekoru</div><div class="kpi-val">${fmt(maxEyo.eyo)}</div><div class="kpi-sub">${maxEyo.ad}</div></div>
+  `;
+  renderTournamentTable();
+}
+function selectTournament(i) { currentTourIdx = i; renderTournamentView(); }
+function sortTournamentBy(key) {
+  if (tSort.key === key) tSort.dir *= -1;
+  else { tSort.key = key; tSort.dir = (key === "derece" || key === "ad" || key === "grp") ? 1 : -1; }
+  renderTournamentTable();
+}
+function renderTournamentTable() {
+  const t = DB.tournaments[currentTourIdx]; if (!t) return;
+  const q = document.getElementById("tSearch").value.trim().toLocaleUpperCase("tr-TR");
+  const rf = document.getElementById("tRoundFilter").value;
+  let items = t.rows.map((r, ri) => ({ ...r, _ri: ri, _turClean: cleanRound(r.tur) }));
+  if (q) items = items.filter(r => r.ad.toLocaleUpperCase("tr-TR").includes(q));
+  if (rf !== "ALL") {
+    items = rf === "OTHER"
+      ? items.filter(r => !["FİNAL","1/2","1/4","1/8","1/16"].includes(r._turClean))
+      : items.filter(r => r._turClean === rf);
+  }
+  items.sort((a, b) => {
+    const va = a[tSort.key], vb = b[tSort.key];
+    if (tSort.key === "ad" || tSort.key === "tur") return String(va).localeCompare(String(vb), "tr") * tSort.dir;
+    return ((Number(va) || 0) - (Number(vb) || 0)) * tSort.dir;
+  });
+  document.querySelector("#tournamentTable tbody").innerHTML = items.map(r => `
+    <tr>
+      <td class="num"><b>${r.derece}</b></td>
+      <td><span class="player-link" onclick="openAthleteDetail('${r.ad}')">${r.ad}</span></td>
+      <td><span class="badge ${roundBadgeClass(r.tur, r.grp)}">${r._turClean}</span></td>
+      <td class="num">${r.grp ?? "-"}</td><td class="num">${r.sayi}</td><td class="num">${r.el}</td>
+      <td class="num"><b>${fmt(r.ort)}</b></td><td class="num">${r.eys1}</td><td class="num">${r.eys2}</td>
+      <td class="num">${fmt(r.eyo)}</td><td class="num">${r.puan ?? "-"}</td>
+      <td class="admin-only">
+        <button class="btn-sm" onclick="openPlayerRowModal(${r._ri})">✏️</button>
+        <button class="btn-sm btn-danger" onclick="deleteRow(${r._ri})">🗑️</button>
+      </td>
+    </tr>
+  `).join("");
+}
+
+function openPlayerRowModal(ri = null, customTi = null) {
+  if (!isAdmin) return;
+  editingTourIdx = customTi !== null ? customTi : currentTourIdx; editingRowIdx = ri;
+  const t = DB.tournaments[editingTourIdx], names = new Set();
+  DB.tournaments.forEach(tr => tr.rows.forEach(r => names.add(r.ad)));
+  document.getElementById("playerNamesList").innerHTML =
+    Array.from(names).sort((a,b) => a.localeCompare(b,"tr")).map(n => `<option value="${n}">`).join("");
+  if (ri !== null) {
+    const r = t.rows[ri];
+    document.getElementById("rowModalTitle").textContent = `${t.name} • Düzenle`;
+    document.getElementById("fAd").value = r.ad; document.getElementById("fDerece").value = r.derece;
+    document.getElementById("fTur").value = r.tur; document.getElementById("fGrp").value = r.grp;
+    document.getElementById("fPuan").value = r.puan ?? ""; document.getElementById("fSayi").value = r.sayi;
+    document.getElementById("fEl").value = r.el; document.getElementById("fOrt").value = fmt(r.ort);
+    document.getElementById("fEys1").value = r.eys1; document.getElementById("fEys2").value = r.eys2;
+    document.getElementById("fEyo").value = r.eyo;
+  } else {
+    document.getElementById("rowModalTitle").textContent = `${t.name} • Sporcu Ekle`;
+    document.getElementById("fAd").value = ""; document.getElementById("fDerece").value = t.rows.length + 1;
+    document.getElementById("fTur").value = "1"; document.getElementById("fGrp").value = "3";
+    document.getElementById("fPuan").value = "4"; document.getElementById("fSayi").value = "0";
+    document.getElementById("fEl").value = "90"; document.getElementById("fOrt").value = "0.0000";
+    document.getElementById("fEys1").value = "0"; document.getElementById("fEys2").value = "0";
+    document.getElementById("fEyo").value = "0.0000";
+  }
+  document.getElementById("rowModal").classList.add("open");
+}
+function closeRowModal() { document.getElementById("rowModal").classList.remove("open"); }
+function calcModalOrt() {
+  const s = Number(document.getElementById("fSayi").value) || 0, e = Number(document.getElementById("fEl").value) || 0;
+  document.getElementById("fOrt").value = e > 0 ? (s / e).toFixed(4) : "0.0000";
+}
+function suggestModalPoints() {
+  const p = calcRulePoints(document.getElementById("fTur").value, document.getElementById("fGrp").value);
+  if (p !== null) document.getElementById("fPuan").value = p;
+}
+function saveRowModal() {
+  if (!isAdmin) return;
+  const ad = document.getElementById("fAd").value.trim().toLocaleUpperCase("tr-TR");
+  if (!ad) return alert("Sporcu adı girin.");
+  const sayi = Number(document.getElementById("fSayi").value) || 0, el = Number(document.getElementById("fEl").value) || 0;
+  const puanRaw = document.getElementById("fPuan").value;
+  const row = {
+    derece: Number(document.getElementById("fDerece").value) || 1, ad,
+    tur: cleanRound(document.getElementById("fTur").value), grp: Number(document.getElementById("fGrp").value) || 1,
+    sayi, el, ort: el > 0 ? Number((sayi / el).toFixed(4)) : 0,
+    eys1: Number(document.getElementById("fEys1").value) || 0, eys2: Number(document.getElementById("fEys2").value) || 0,
+    eyo: Number(document.getElementById("fEyo").value) || 0, puan: puanRaw === "" ? null : Number(puanRaw)
+  };
+  const t = DB.tournaments[editingTourIdx];
+  if (editingRowIdx !== null) t.rows[editingRowIdx] = row; else t.rows.push(row);
+  markDirty(); closeRowModal(); renderAll(); showToast("Taslağa kaydedildi.");
+}
+function deleteRow(ri) {
+  if (!isAdmin) return;
+  const t = DB.tournaments[currentTourIdx];
+  if (!confirm(`${t.rows[ri].ad} silinsin mi?`)) return;
+  t.rows.splice(ri, 1); markDirty(); renderAll();
+}
+function autoCalcPointsForCurrent() {
+  if (!isAdmin) return;
+  DB.tournaments[currentTourIdx].rows.forEach(r => { const p = calcRulePoints(r.tur, r.grp); if (p !== null) r.puan = p; });
+  markDirty(); renderAll(); showToast("Puanlar hesaplandı.");
+}
+function rerankCurrentByAvg() {
+  if (!isAdmin) return;
+  const t = DB.tournaments[currentTourIdx];
+  t.rows.sort((a, b) => (b.puan ?? 0) - (a.puan ?? 0) || b.ort - a.ort);
+  t.rows.forEach((r, i) => r.derece = i + 1);
+  markDirty(); renderAll(); showToast("Dereceler sıralandı.");
+}
+function openNewTournamentModal() {
+  if (!isAdmin) return;
+  document.getElementById("ntName").value = "";
+  document.getElementById("newTourModal").classList.add("open");
+}
+function createNewTournament() {
+  if (!isAdmin) return;
+  const name = document.getElementById("ntName").value.trim();
+  if (!name) return alert("Turnuva adı girin.");
+  if (DB.tournaments.some(t => t.name === name)) return alert("Bu isimde turnuva var.");
+  let rows = [];
+  if (document.getElementById("ntTemplate").value === "COPY_LAST" && DB.tournaments.length) {
+    rows = DB.tournaments.at(-1).rows.map((r, i) => ({
+      derece: i + 1, ad: r.ad, tur: "1", grp: 3, sayi: 0, el: 90, ort: 0, eys1: 0, eys2: 0, eyo: 0, puan: 4
+    }));
+  }
+  DB.tournaments.push({ name, rows }); currentTourIdx = DB.tournaments.length - 1;
+  markDirty(); document.getElementById("newTourModal").classList.remove("open");
+  document.querySelector('[data-tab="tournaments"]').click();
+}
+function renameCurrentTournament() {
+  if (!isAdmin) return;
+  const t = DB.tournaments[currentTourIdx], n = prompt("Yeni turnuva adı:", t.name);
+  if (n && n.trim()) { t.name = n.trim(); markDirty(); renderAll(); }
+}
+function deleteCurrentTournament() {
+  if (!isAdmin || DB.tournaments.length <= 1) return;
+  const t = DB.tournaments[currentTourIdx];
+  if (!confirm(`"${t.name}" silinsin mi?`)) return;
+  DB.tournaments.splice(currentTourIdx, 1); currentTourIdx = Math.max(0, currentTourIdx - 1);
+  markDirty(); renderAll();
+}
+
+function sortAthletesBy(key) {
+  if (aSort.key === key) aSort.dir *= -1;
+  else { aSort.key = key; aSort.dir = (key === "ad" || key === "bestRank") ? 1 : -1; }
+  renderAthletesTable();
+}
+function renderAthletesTable() {
+  const q = document.getElementById("aSearch").value.trim().toLocaleUpperCase("tr-TR");
+  const minT = Number(document.getElementById("aMinTour").value) || 1;
+  let list = computeAthleteStats().filter(a => a.katilim >= minT);
+  if (q) list = list.filter(a => a.ad.includes(q));
+  list.sort((a, b) => aSort.key === "ad" ? a.ad.localeCompare(b.ad, "tr") * aSort.dir : ((a[aSort.key] || 0) - (b[aSort.key] || 0)) * aSort.dir);
+  document.querySelector("#athletesTable tbody").innerHTML = list.map(a => `
+    <tr>
+      <td><span class="player-link" onclick="openAthleteDetail('${a.ad}')">${a.ad}</span></td>
+      <td class="num">${a.katilim}</td>
+      <td class="num">${a.samp || "-"}</td><td class="num">${a.iki || "-"}</td>
+      <td class="num">${a.sf || "-"}</td><td class="num">${a.qf || "-"}</td>
+      <td class="num"><b>${a.hasPuan ? a.puan : "-"}</b></td>
+      <td class="num">${a.sayi.toLocaleString("tr-TR")}</td><td class="num">${a.el.toLocaleString("tr-TR")}</td>
+      <td class="num"><b>${fmt(a.kariyerOrt)}</b></td><td class="num">${fmt(a.bestOrt)}</td>
+      <td class="num">${a.maxEys1}</td><td class="num">${fmt(a.maxEyo)}</td><td class="num">${a.bestRank}</td>
+    </tr>
+  `).join("");
+}
+
+function openAthleteDetail(name) {
+  if (!name) return;
+  document.querySelector('[data-tab="athletes"]').click();
+  const a = computeAthleteStats().find(x => x.ad === name.toLocaleUpperCase("tr-TR"));
+  if (!a) return;
+  const panel = document.getElementById("athleteDetailPanel");
+  panel.style.display = "block"; panel.scrollIntoView({ behavior: "smooth" });
+  document.getElementById("adName").textContent = a.ad;
+  document.getElementById("adSub").textContent = `${a.katilim} Turnuva • En İyi: ${a.bestRank}. • ${a.samp} Şampiyonluk, ${a.iki} Final`;
+  document.getElementById("adKpis").innerHTML = `
+    <div class="card"><div class="kpi-label">Kariyer Ort.</div><div class="kpi-val">${fmt(a.kariyerOrt)}</div><div class="kpi-sub">${a.sayi} Sayı / ${a.el} El</div></div>
+    <div class="card"><div class="kpi-label">En İyi G.ORT</div><div class="kpi-val">${fmt(a.bestOrt)}</div><div class="kpi-sub">Zirve</div></div>
+    <div class="card"><div class="kpi-label">Rekor EYS1 / EYO</div><div class="kpi-val">${a.maxEys1} / ${fmt(a.maxEyo)}</div><div class="kpi-sub">Seri & Maç</div></div>
+    <div class="card"><div class="kpi-label">Podyum (1./2./1-2)</div><div class="kpi-val">${a.samp} / ${a.iki} / ${a.sf}</div><div class="kpi-sub">Çeyrek Final: ${a.qf}</div></div>
+  `;
+  document.querySelector("#athleteHistoryTable tbody").innerHTML = a.history.map(h => `
+    <tr>
+      <td><b>${h.tourName}</b></td><td class="num">${h.derece}</td>
+      <td><span class="badge ${roundBadgeClass(h.tur, h.grp)}">${h.tur}</span></td>
+      <td class="num">${h.grp}</td><td class="num">${h.sayi}</td><td class="num">${h.el}</td>
+      <td class="num"><b>${fmt(h.ort)}</b></td><td class="num">${h.eys1}</td><td class="num">${h.eys2}</td>
+      <td class="num">${fmt(h.eyo)}</td><td class="num">${h.puan ?? "-"}</td>
+      <td class="admin-only"><button class="btn-sm" onclick="openPlayerRowModal(${h.ri}, ${h.ti})">✏️</button></td>
+    </tr>
+  `).join("");
+  drawMiniLineChart("chartAthleteOrt", a.history.map(h => ({ label: h.tourName, val: h.ort })), "#10b981", false);
+  drawMiniLineChart("chartAthleteRank", a.history.map(h => ({ label: h.tourName, val: h.derece })), "#f59e0b", true);
+}
+
+function drawMiniLineChart(elId, points, color, invertY) {
+  const box = document.getElementById(elId); box.innerHTML = "";
+  if (!points.length) return;
+  const W = 500, H = 200, padL = 36, padR = 20, padT = 18, padB = 30, cw = W - padL - padR, ch = H - padT - padB;
+  const vals = points.map(p => p.val), minV = invertY ? 1 : Math.min(...vals) * 0.85, maxV = Math.max(...vals) * (invertY ? 1.1 : 1.08) || 1;
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`); svg.classList.add("chart");
+  const coords = points.map((p, i) => {
+    const x = points.length === 1 ? padL + cw / 2 : padL + (i / (points.length - 1)) * cw;
+    const ratio = (p.val - minV) / (maxV - minV || 1);
+    return { x, y: invertY ? padT + ratio * ch : padT + ch - ratio * ch, ...p };
+  });
+  if (coords.length > 1) {
+    const poly = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
+    poly.setAttribute("fill", "none"); poly.setAttribute("stroke", color); poly.setAttribute("stroke-width", "2.5");
+    poly.setAttribute("points", coords.map(c => `${c.x},${c.y}`).join(" ")); svg.appendChild(poly);
+  }
+  coords.forEach(c => {
+    const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    dot.setAttribute("cx", c.x); dot.setAttribute("cy", c.y); dot.setAttribute("r", 5);
+    dot.setAttribute("fill", color); dot.setAttribute("stroke", "#0b1120"); dot.setAttribute("stroke-width", "1.5");
+    attachTooltip(dot, `<b>${c.label}</b><br>Değer: ${invertY ? c.val + "." : Number(c.val).toFixed(4)}`); svg.appendChild(dot);
+    const tx = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    tx.setAttribute("x", c.x); tx.setAttribute("y", H - 8); tx.setAttribute("text-anchor", "middle");
+    tx.setAttribute("font-size", points.length > 9 ? "8.5" : "10.5"); tx.setAttribute("fill", "var(--muted)");
+    tx.textContent = c.label; svg.appendChild(tx);
+  });
+  box.appendChild(svg);
+}
+
+function populateCompareSelects() {
+  const list = computeAthleteStats().sort((a, b) => a.ad.localeCompare(b.ad, "tr"));
+  const s1 = document.getElementById("cmpP1"), s2 = document.getElementById("cmpP2");
+  const prev1 = s1.value, prev2 = s2.value;
+  const opts = list.map(a => `<option value="${a.ad}">${a.ad} (${a.katilim})</option>`).join("");
+  s1.innerHTML = opts; s2.innerHTML = opts;
+  if (prev1 && list.some(a => a.ad === prev1)) s1.value = prev1; else if (list[0]) s1.value = list[0].ad;
+  if (prev2 && list.some(a => a.ad === prev2)) s2.value = prev2; else if (list[1]) s2.value = list[1].ad;
+}
+function renderCompare() {
+  const list = computeAthleteStats();
+  const p1 = list.find(a => a.ad === document.getElementById("cmpP1").value);
+  const p2 = list.find(a => a.ad === document.getElementById("cmpP2").value);
+  const grid = document.getElementById("cmpSummaryGrid");
+  if (!p1 || !p2) { grid.innerHTML = ""; return; }
+  const card = (p, c) => `
+    <div class="card" style="border-top:3px solid ${c}">
+      <h3 style="margin-top:0;">${p.ad}</h3>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; font-size:13px;">
+        <div>Katılım: <b>${p.katilim}</b></div><div>Kariyer Ort: <b>${fmt(p.kariyerOrt)}</b></div>
+        <div>Şampiyonluk: <b>${p.samp}</b></div><div>En İyi G.ORT: <b>${fmt(p.bestOrt)}</b></div>
+        <div>Final / 1-2: <b>${p.iki} / ${p.sf}</b></div><div>Rekor EYS1 / EYO: <b>${p.maxEys1} / ${fmt(p.maxEyo)}</b></div>
+      </div>
+    </div>`;
+  grid.innerHTML = card(p1, "#10b981") + card(p2, "#38bdf8");
+  const box = document.getElementById("chartCompare"); box.innerHTML = "";
+  const W = 700, H = 240, padL = 42, padR = 20, padT = 20, padB = 34, cw = W - padL - padR, ch = H - padT - padB;
+  const allVals = [...p1.history.map(h => h.ort), ...p2.history.map(h => h.ort), 0.5];
+  const minV = Math.min(...allVals) * 0.85, maxV = Math.max(...allVals) * 1.1;
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`); svg.classList.add("chart");
+  const tours = DB.tournaments;
+  const drawSeries = (player, color) => {
+    const pts = [];
+    tours.forEach((t, i) => {
+      const h = player.history.find(x => x.tourName === t.name);
+      const x = tours.length === 1 ? padL + cw / 2 : padL + (i / (tours.length - 1)) * cw;
+      if (h) pts.push({ x, y: padT + ch - ((h.ort - minV) / (maxV - minV || 1)) * ch, name: t.name, ort: h.ort, derece: h.derece });
+    });
+    if (pts.length > 1) {
+      const pl = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
+      pl.setAttribute("fill", "none"); pl.setAttribute("stroke", color); pl.setAttribute("stroke-width", "2.5");
+      pl.setAttribute("points", pts.map(p => `${p.x},${p.y}`).join(" ")); svg.appendChild(pl);
+    }
+    pts.forEach(p => {
+      const c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      c.setAttribute("cx", p.x); c.setAttribute("cy", p.y); c.setAttribute("r", 4.5); c.setAttribute("fill", color);
+      attachTooltip(c, `<b>${player.ad}</b> (${p.name})<br>G.ORT: ${fmt(p.ort)}<br>Derece: ${p.derece}.`); svg.appendChild(c);
+    });
+  };
+  tours.forEach((t, i) => {
+    const x = tours.length === 1 ? padL + cw / 2 : padL + (i / (tours.length - 1)) * cw;
+    const tx = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    tx.setAttribute("x", x); tx.setAttribute("y", H - 8); tx.setAttribute("text-anchor", "middle");
+    tx.setAttribute("font-size", "10"); tx.setAttribute("fill", "var(--muted)");
+    tx.textContent = t.name; svg.appendChild(tx);
+  });
+  drawSeries(p1, "#10b981"); drawSeries(p2, "#38bdf8"); box.appendChild(svg);
+}
+
+function handleExcelFile(file) {
+  if (!isAdmin) return;
+  if (typeof XLSX === "undefined") return alert("SheetJS kütüphanesi yüklenemedi. İnternet bağlantınızı kontrol edin.");
+  const reader = new FileReader();
+  reader.onload = e => {
+    const wb = XLSX.read(new Uint8Array(e.target.result), { type: "array" });
+    const parsed = [];
+    wb.SheetNames.forEach(sheetName => {
+      const json = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { defval: "", raw: false });
+      const rows = [];
+      json.forEach((row, idx) => {
+        const ad = String(row["ADI SOYADI"] ?? row["AD SOYAD"] ?? "").trim().toLocaleUpperCase("tr-TR");
+        if (!ad) return;
+        const sayi = Number(String(row["TOPLAM SAYI"] ?? row["T.SAYI"] ?? 0).replace(",", ".")) || 0;
+        const el = Number(String(row["TOPLAM EL"] ?? row["T.EL"] ?? 0).replace(",", ".")) || 0;
+        const ortRaw = Number(String(row["GENEL ORTALAMA"] ?? row["G.ORT"] ?? "").replace(",", "."));
+        const ort = !isNaN(ortRaw) && ortRaw > 0 ? ortRaw : (el > 0 ? Number((sayi / el).toFixed(4)) : 0);
+        const puanStr = row["PUAN"];
+        rows.push({
+          derece: Number(row["DERECE"]) || (idx + 1), ad, tur: cleanRound(row["ELENDİĞİ TUR"]),
+          grp: Number(row["ELENDİĞİ GRUP DERECESİ"]) || 1, sayi, el, ort,
+          eys1: Number(row["EN YÜKSEK 1.SERİ"] ?? row["EYS1"] ?? 0) || 0,
+          eys2: Number(row["EN YÜKSEK 2.SERİ"] ?? row["EYS2"] ?? 0) || 0,
+          eyo: Number(String(row["EN YÜKSEK ORTALAMA"] ?? row["EYO"] ?? 0).replace(",", ".")) || 0,
+          puan: puanStr !== undefined && puanStr !== "" ? Number(puanStr) : null
+        });
+      });
+      if (rows.length) parsed.push({ name: sheetName.trim(), rows });
+    });
+    if (!parsed.length) return alert("Geçerli sekme bulunamadı.");
+    DB = { tournaments: parsed }; currentTourIdx = DB.tournaments.length - 1;
+    markDirty(); renderAll(); showToast(`${parsed.length} turnuva yüklendi!`);
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+document.getElementById("xlsxInput").addEventListener("change", e => {
+  if (e.target.files[0]) handleExcelFile(e.target.files[0]);
+  e.target.value = "";
+});
+const dz = document.getElementById("dropZone");
+dz.addEventListener("dragover", e => { if (isAdmin) { e.preventDefault(); dz.classList.add("dragover"); } });
+dz.addEventListener("dragleave", () => dz.classList.remove("dragover"));
+dz.addEventListener("drop", e => {
+  if (!isAdmin) return;
+  e.preventDefault(); dz.classList.remove("dragover");
+  if (e.dataTransfer.files[0]) handleExcelFile(e.dataTransfer.files[0]);
+});
+
+function exportToExcel() {
+  if (!isAdmin || typeof XLSX === "undefined") return;
+  const wb = XLSX.utils.book_new();
+  DB.tournaments.forEach(t => {
+    const aoa = [["DERECE","ADI SOYADI","ELENDİĞİ TUR","ELENDİĞİ GRUP DERECESİ","TOPLAM SAYI","TOPLAM EL","GENEL ORTALAMA","EN YÜKSEK 1.SERİ","EN YÜKSEK 2.SERİ","EN YÜKSEK ORTALAMA","PUAN"]];
+    t.rows.forEach(r => aoa.push([r.derece, r.ad, r.tur, r.grp, r.sayi, r.el, Number(fmt(r.ort)), r.eys1, r.eys2, Number(fmt(r.eyo)), r.puan ?? ""]));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), t.name.slice(0, 31));
+  });
+  XLSX.writeFile(wb, `Bilardo_Turnuvalar_${new Date().toISOString().slice(0,10)}.xlsx`);
+}
+
+function exportDataJson() {
+  if (!isAdmin) return;
+  const blob = new Blob([JSON.stringify(DB)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = "data.json";
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 250);
+  showToast("data.json indiriliyor...");
+}
+
+document.getElementById("jsonInput").addEventListener("change", e => {
+  if (!isAdmin || !e.target.files[0]) return;
+  const r = new FileReader();
+  r.onload = ev => {
+    DB = normalizeDB(JSON.parse(ev.target.result)); currentTourIdx = Math.max(0, DB.tournaments.length - 1);
+    markDirty(); renderAll(); showToast("JSON yüklendi!");
+  };
+  r.readAsText(e.target.files[0]);
+});
+
+function renderAll() {
+  updateSummaryBadge(); renderOverview(); renderTournamentView();
+  renderAthletesTable(); populateCompareSelects(); renderCompare();
+}
+
+initApp();
+</script>
+</body>
+</html>
